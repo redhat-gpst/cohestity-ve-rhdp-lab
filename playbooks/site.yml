@@ -1,0 +1,11 @@
+---
+- name: Deploy Cohesity VE Node
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cohesity_ns: "cohesity-ve"
+    cohesity_dv: "cohesity-dv"
+
+  roles:
+    - cohesity_deploy

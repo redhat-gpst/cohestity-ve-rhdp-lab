@@ -1,0 +1,10 @@
+ansible_runner:
+  name: cohesity-ve-deployer
+  
+  playbook: playbooks/site.yml
+  
+  extra_vars:
+    cohesity_ns: "cohesity-ve"
+    cohesity_dv: "cohesity-dv"
+    udn_ip: "192.168.100.2"
+    vm_name: "cohesity-ve"
