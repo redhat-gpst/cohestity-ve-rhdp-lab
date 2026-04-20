@@ -1,10 +1,27 @@
-ansible_runner:
-  name: cohesity-ve-deployer
-  
-  playbook: playbooks/site.yml
-  
-  extra_vars:
-    cohesity_ns: "cohesity-ve"
-    cohesity_dv: "cohesity-dv"
-    udn_ip: "192.168.100.2"
-    vm_name: "cohesity-ve"
+job:
+  name: ansible-demo
+  ttlSecondsAfterFinished: 600
+  restartPolicy: Never
+
+namespace:
+  name: ansible-runner
+  create: true
+
+ansible:
+  repository:
+   
+    url: "https://github.com/redhat-gpst/cohestity-ve-rhdp-lab"
+    branch: "main"
+    path: "playbooks"
+
+  # Main playbook to execute
+  playbook: "site.yml"
+
+  # Python packages to install
+  requirements:
+    - ansible-core
+    - ansible-runner
+    - kubernetes
+    - openshift
+    - PyYAML
+    - requests
