@@ -1,0 +1,13 @@
+apiVersion: k8s.ovn.org/v1
+kind: UserDefinedNetwork
+metadata:
+  name: cohesity-udn
+  namespace: cohesity-ve
+spec:
+  topology: Layer2
+  layer2:
+    role: Secondary
+    subnets:
+      - 192.168.100.0/24
+  
+      

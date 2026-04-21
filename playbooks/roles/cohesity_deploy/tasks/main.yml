@@ -1,0 +1,152 @@
+---
+- name: Deploy OpenShift Virtualization Operator
+  kubernetes.core.k8s:
+    state: present
+    template: templates/10-openshift-virt.j2
+
+- name: Wait for OpenShift Virtualization Operator to reach Succeeded state
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: openshift-cnv
+    label_selectors:
+      - operators.coreos.com/kubevirt-hyperconverged.openshift-cnv
+  register: cnv_csv
+  until: 
+    - cnv_csv.resources is defined
+    - cnv_csv.resources | length > 0
+    - cnv_csv.resources[0].status.phase == "Succeeded"
+  retries: 50
+  delay: 20
+
+- name: Deploy HyperConverged Cluster Operator (HCO)
+  kubernetes.core.k8s:
+    state: present
+    template: templates/20-openshift-hco.j2
+
+- name: Wait for HyperConverged Available condition
+  kubernetes.core.k8s_info:
+    api_version: hco.kubevirt.io/v1beta1
+    kind: HyperConverged
+    name: kubevirt-hyperconverged
+    namespace: openshift-cnv
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  register: r_hyperconverged
+  ignore_errors: true
+
+
+- name: Create Cohesity Namespace
+  kubernetes.core.k8s:
+    state: present
+    template: templates/30-cohesity-ve-ns.j2
+
+- name: Create Cohesity UDN
+  kubernetes.core.k8s:
+    state: present
+    template: templates/40-cohesity-udn.j2
+
+- name: Create Cohesity Network Attachment Definition (NAD)
+  kubernetes.core.k8s:
+    state: present
+    template: templates/cohesity-nad.j2
+
+- name: Create Cohesity VE Network Configuration
+  kubernetes.core.k8s:
+    state: present
+    template: templates/cohesity-ve-network.j2
+
+- name: Deploy Boot DataVolume
+  kubernetes.core.k8s:
+    state: present
+    template: templates/55-cohesity-dv.j2
+
+- name: Create Data and Meta PVCs
+  kubernetes.core.k8s:
+    state: present
+    template: templates/50-cohesity-vm1-pvc.j2
+
+
+- name: Launch Cohesity Virtual Machine
+  kubernetes.core.k8s:
+    state: present
+    template: templates/60-cohesity-vm1.j2
+
+- name: Wait for Cohesity VM to be Running (K8s status)
+  kubernetes.core.k8s_info:
+    kind: VirtualMachine
+    name: cohesity-ve1
+    namespace: cohesity-ve
+  register: vm_status
+  until: vm_status.resources[0].status.printableStatus == "Running"
+  retries: 60
+  delay: 10
+
+- name: Wait for SSH to respond on the Cohesity IP
+  ansible.builtin.wait_for:
+    host: 192.168.100.2
+    port: 22
+    state: started
+    delay: 10
+    timeout: 300
+  register: ssh_ready
+
+- name: Stop the VM for disk cleanup
+  kubernetes.core.k8s:
+    state: patched
+    kind: VirtualMachine
+    name: cohesity-ve1
+    namespace: cohesity-ve
+    definition:
+      spec:
+        running: false
+
+- name: Wait for VM to reach Stopped state
+  kubernetes.core.k8s_info:
+    kind: VirtualMachine
+    name: cohesity-ve1
+    namespace: cohesity-ve
+  register: vm_stop_check
+  until: vm_stop_check.resources[0].status.printableStatus == "Stopped"
+  retries: 20
+  delay: 5
+
+- name: Delete cloud-init disk (vdb) to fix iris_cli disk scanning
+  kubernetes.core.k8s:
+    state: patched
+    kind: VirtualMachine
+    name: cohesity-ve1
+    namespace: cohesity-ve
+    definition:
+      spec:
+        template:
+          spec:
+            volumes:
+              - $patch: delete
+                name: cloudinit
+            domain:
+              devices:
+                disks:
+                  - $patch: delete
+                    name: cloudinit
+
+- name: Start the VM (Clean disks)
+  kubernetes.core.k8s:
+    state: patched
+    kind: VirtualMachine
+    name: cohesity-ve1
+    namespace: cohesity-ve
+    definition:
+      spec:
+        running: true
+
+- name: Final SSH wait before Cohesity Cluster Creation
+  ansible.builtin.wait_for:
+    host: 192.168.100.2
+    port: 22
+    state: started
+    delay: 5
+    timeout: 300

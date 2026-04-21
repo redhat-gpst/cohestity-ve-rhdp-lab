@@ -1,0 +1,19 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: rhov-test-dv1
+  namespace: cohesity-ve
+  annotations:
+    cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+spec:
+  source:
+    http:
+      url: "https://s3-us-west-2.amazonaws.com/downloads.portal/artifacts/7.3.2/20260129-222510/release_full/vm_robo_image_kvm/cohesity-kvm-robo-7.3.2_release-20260123_529553a9.qcow2"
+  storage:
+    resources:
+      requests:
+        storage: 300Gi
+    storageClassName: ocs-external-storagecluster-ceph-rbd
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Filesystem
